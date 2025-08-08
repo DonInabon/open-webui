@@ -60,6 +60,13 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
             "GEMINI_API_BASE_URL": request.app.state.config.IMAGES_GEMINI_API_BASE_URL,
             "GEMINI_API_KEY": request.app.state.config.IMAGES_GEMINI_API_KEY,
         },
+        "custom": {
+            "url": request.app.state.config.CUSTOM_IMAGE_GENERATION_URL,
+            "headers": request.app.state.config.CUSTOM_IMAGE_GENERATION_HEADERS,
+            "body": request.app.state.config.CUSTOM_IMAGE_GENERATION_BODY,
+            "download_url": request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_URL,
+            "download_headers": request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_HEADERS,
+        },
     }
 
 
@@ -88,6 +95,14 @@ class GeminiConfigForm(BaseModel):
     GEMINI_API_KEY: str
 
 
+class CustomConfigForm(BaseModel):
+    url: str
+    headers: str
+    body: str
+    download_url: str
+    download_headers: str
+
+
 class ConfigForm(BaseModel):
     enabled: bool
     engine: str
@@ -96,6 +111,7 @@ class ConfigForm(BaseModel):
     automatic1111: Automatic1111ConfigForm
     comfyui: ComfyUIConfigForm
     gemini: GeminiConfigForm
+    custom: CustomConfigForm
 
 
 @router.post("/config/update")
@@ -152,6 +168,12 @@ async def update_config(
         form_data.comfyui.COMFYUI_WORKFLOW_NODES
     )
 
+    request.app.state.config.CUSTOM_IMAGE_GENERATION_URL = form_data.custom.url
+    request.app.state.config.CUSTOM_IMAGE_GENERATION_HEADERS = form_data.custom.headers
+    request.app.state.config.CUSTOM_IMAGE_GENERATION_BODY = form_data.custom.body
+    request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_URL = form_data.custom.download_url
+    request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_HEADERS = form_data.custom.download_headers
+
     return {
         "enabled": request.app.state.config.ENABLE_IMAGE_GENERATION,
         "engine": request.app.state.config.IMAGE_GENERATION_ENGINE,
@@ -176,6 +198,13 @@ async def update_config(
         "gemini": {
             "GEMINI_API_BASE_URL": request.app.state.config.IMAGES_GEMINI_API_BASE_URL,
             "GEMINI_API_KEY": request.app.state.config.IMAGES_GEMINI_API_KEY,
+        },
+        "custom": {
+            "url": request.app.state.config.CUSTOM_IMAGE_GENERATION_URL,
+            "headers": request.app.state.config.CUSTOM_IMAGE_GENERATION_HEADERS,
+            "body": request.app.state.config.CUSTOM_IMAGE_GENERATION_BODY,
+            "download_url": request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_URL,
+            "download_headers": request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_HEADERS,
         },
     }
 
@@ -397,6 +426,8 @@ def get_models(request: Request, user=Depends(get_verified_user)):
                         ][0],
                     )
                 )
+        elif request.app.state.config.IMAGE_GENERATION_ENGINE == "custom":
+            return []
         elif (
             request.app.state.config.IMAGE_GENERATION_ENGINE == "automatic1111"
             or request.app.state.config.IMAGE_GENERATION_ENGINE == ""
@@ -453,7 +484,7 @@ def load_url_image_data(url, headers=None):
             return r.content, mime_type
         else:
             log.error("Url does not point to an image.")
-            return None
+            return None, None
 
     except Exception as e:
         log.exception(f"Error saving image: {e}")
@@ -582,6 +613,46 @@ async def image_generations(
 
             return images
 
+        elif request.app.state.config.IMAGE_GENERATION_ENGINE == "custom":
+            headers = json.loads(request.app.state.config.CUSTOM_IMAGE_GENERATION_HEADERS)
+
+            body_str = request.app.state.config.CUSTOM_IMAGE_GENERATION_BODY.replace(
+                "{QUERY}", form_data.prompt
+            )
+            body = json.loads(body_str)
+
+            r = await asyncio.to_thread(
+                requests.post,
+                url=request.app.state.config.CUSTOM_IMAGE_GENERATION_URL,
+                json=body,
+                headers=headers,
+            )
+
+            r.raise_for_status()
+            res = r.json()
+
+            file_id = res["file_id"]
+
+            download_headers = json.loads(
+                request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_HEADERS
+            )
+
+            image_data, content_type = load_url_image_data(
+                f"{request.app.state.config.CUSTOM_IMAGE_DOWNLOAD_URL}{file_id}",
+                headers=download_headers,
+            )
+
+            if image_data is None:
+                raise Exception(
+                    "Failed to download image from the custom API. Please check your download URL and headers."
+                )
+
+            if not content_type:
+                content_type = "image/png"
+
+            url = upload_image(request, image_data, content_type, {}, user)
+            images = [{"url": url}]
+            return images
         elif request.app.state.config.IMAGE_GENERATION_ENGINE == "comfyui":
             data = {
                 "prompt": form_data.prompt,

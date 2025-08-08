@@ -2976,6 +2976,34 @@ IMAGE_GENERATION_MODEL = PersistentConfig(
     os.getenv("IMAGE_GENERATION_MODEL", ""),
 )
 
+# Custom API
+CUSTOM_IMAGE_GENERATION_URL = PersistentConfig(
+    "CUSTOM_IMAGE_GENERATION_URL",
+    "image_generation.custom.url",
+    os.getenv("CUSTOM_IMAGE_GENERATION_URL", ""),
+)
+CUSTOM_IMAGE_GENERATION_HEADERS = PersistentConfig(
+    "CUSTOM_IMAGE_GENERATION_HEADERS",
+    "image_generation.custom.headers",
+    os.getenv("CUSTOM_IMAGE_GENERATION_HEADERS", "{}"),
+)
+CUSTOM_IMAGE_GENERATION_BODY = PersistentConfig(
+    "CUSTOM_IMAGE_GENERATION_BODY",
+    "image_generation.custom.body",
+    os.getenv("CUSTOM_IMAGE_GENERATION_BODY", "{}"),
+)
+CUSTOM_IMAGE_DOWNLOAD_URL = PersistentConfig(
+    "CUSTOM_IMAGE_DOWNLOAD_URL",
+    "image_generation.custom.download_url",
+    os.getenv("CUSTOM_IMAGE_DOWNLOAD_URL", ""),
+)
+CUSTOM_IMAGE_DOWNLOAD_HEADERS = PersistentConfig(
+    "CUSTOM_IMAGE_DOWNLOAD_HEADERS",
+    "image_generation.custom.download_headers",
+    os.getenv("CUSTOM_IMAGE_DOWNLOAD_HEADERS", "{}"),
+)
+
+
 ####################################
 # Audio
 ####################################
